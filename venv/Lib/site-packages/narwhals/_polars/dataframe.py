@@ -29,6 +29,7 @@ from narwhals.dependencies import is_numpy_array_1d
 from narwhals.exceptions import ColumnNotFoundError
 
 if TYPE_CHECKING:
+    from collections.abc import Iterable
     from types import ModuleType
     from typing import Callable
 
@@ -40,6 +41,7 @@ if TYPE_CHECKING:
     from narwhals._polars.expr import PolarsExpr
     from narwhals._polars.group_by import PolarsGroupBy, PolarsLazyGroupBy
     from narwhals._translate import IntoArrowTable
+    from narwhals._typing import _EagerAllowedImpl, _LazyAllowedImpl
     from narwhals._utils import Version, _LimitedContext
     from narwhals.dataframe import DataFrame, LazyFrame
     from narwhals.dtypes import DType
@@ -195,6 +197,19 @@ class PolarsBaseFrame(Generic[NativePolarsFrame]):
                 suffix=suffix,
             )
         )
+
+    def top_k(
+        self, k: int, *, by: str | Iterable[str], reverse: bool | Sequence[bool]
+    ) -> Self:
+        if self._backend_version < (1, 0, 0):
+            return self._with_native(
+                self.native.top_k(
+                    k=k,
+                    by=by,
+                    descending=reverse,  # type: ignore[call-arg]
+                )
+            )
+        return self._with_native(self.native.top_k(k=k, by=by, reverse=reverse))
 
     def unpivot(
         self,
@@ -440,7 +455,7 @@ class PolarsDataFrame(PolarsBaseFrame[pl.DataFrame]):
         for series in self.native.iter_columns():
             yield PolarsSeries.from_native(series, context=self)
 
-    def lazy(self, *, backend: Implementation | None = None) -> CompliantLazyFrameAny:
+    def lazy(self, backend: _LazyAllowedImpl | None = None) -> CompliantLazyFrameAny:
         if backend is None or backend is Implementation.POLARS:
             return PolarsLazyFrame.from_native(self.native.lazy(), context=self)
         if backend is Implementation.DUCKDB:
@@ -546,6 +561,14 @@ class PolarsDataFrame(PolarsBaseFrame[pl.DataFrame]):
         except Exception as e:  # noqa: BLE001
             raise catch_polars_exception(e) from None
 
+    def top_k(
+        self, k: int, *, by: str | Iterable[str], reverse: bool | Sequence[bool]
+    ) -> Self:
+        try:
+            return super().top_k(k=k, by=by, reverse=reverse)
+        except Exception as e:  # noqa: BLE001  # pragma: no cover
+            raise catch_polars_exception(e) from None
+
 
 class PolarsLazyFrame(PolarsBaseFrame[pl.LazyFrame]):
     sink_parquet: Method[None]
@@ -578,7 +601,7 @@ class PolarsLazyFrame(PolarsBaseFrame[pl.LazyFrame]):
         return func
 
     def _iter_columns(self) -> Iterator[PolarsSeries]:  # pragma: no cover
-        yield from self.collect(self._implementation).iter_columns()
+        yield from self.collect(Implementation.POLARS).iter_columns()
 
     def collect_schema(self) -> dict[str, DType]:
         try:
@@ -587,7 +610,7 @@ class PolarsLazyFrame(PolarsBaseFrame[pl.LazyFrame]):
             raise catch_polars_exception(e) from None
 
     def collect(
-        self, backend: Implementation | None, **kwargs: Any
+        self, backend: _EagerAllowedImpl | None, **kwargs: Any
     ) -> CompliantDataFrameAny:
         try:
             result = self.native.collect(**kwargs)

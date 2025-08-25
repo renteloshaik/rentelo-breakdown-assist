@@ -162,19 +162,20 @@ def generate_id(booking_id: str):
     return f"BD-{suffix}"
 
 # ------------- USER CONTROLS (Top of Page instead of Sidebar) -------------
-st.header("🛠️ Rentelo Breakdown Assist")
-st.caption("Record, track & resolve vehicle breakdowns.")
+st.header("🛠️ Rentelo RSA")
+st.caption("Road Side Assistance")
 
 # User name input
-user_name = st.text_input(
-    "Your Name (appears as Added By / Resolved By)",
-    value=st.session_state.get("user_name",""),
-    placeholder="Search by Name"
-)
-if user_name:
-    st.session_state["user_name"] = user_name
-    parts = [p.strip()[0:1].upper() for p in user_name.split() if p.strip()]
-    st.session_state["user_initials"] = "".join(parts)[0:2] if parts else "XX"
+#user_name = st.text_input(
+    #"Check Status of the Breakdown",
+    #value=st.session_state.get("user_name",""),
+    #placeholder="Search by Agent/Technician"
+#)
+#if user_name:
+# st.session_state["user_name"] = user_name
+#parts = [p.strip()[0:1].upper() for p in user_name.split() if p.strip()]
+#st.session_state["user_initials"] = "".join(parts)[0:2] if parts else "XX"
+user_name = "System"  # default user for all added_by / resolved_by
 
 # Refresh button
 if st.button("🔄 Refresh data (from Google Sheet)"):
@@ -200,7 +201,7 @@ if search_id:
 # ------------- MAIN LAYOUT -------------
 
 st.title("Rentelo Breakdown Assist")
-st.write("Store & manage scooty/car breakdowns with live data in Google Sheets. Filter, update status, and export.")
+st.write("Store & manage bike/car breakdowns")
 
 tabs = st.tabs(["📑 Breakdown Details", "➕ Change Status", "📋 Manage / Resolve", "🔎 Filter & Export"])
 
@@ -215,13 +216,12 @@ with tabs[0]:
             customer_name = st.text_input("Customer Name *")
             customer_mobile = st.text_input("Customer Mobile *")
             pickup_location = st.text_input("Pickup Location")
-            booking_days = st.number_input("Booking for days", min_value=0, value=0, step=1)
+            #booking_days = st.number_input("Booking for days", min_value=0, value=0, step=1)
             vehicle_type = st.selectbox("Vehicle Type *", ["Bike","Car"])
             vehicle_number = st.text_input("Vehicle Number")
             vehicle_model = st.text_input("Vehicle Model")
 
         with right:
-            issue = st.text_area("Issue / Description *", height=120)
             customer_location_url = st.text_input("Customer Location (Google Maps URL)")
             col_lat, col_lon = st.columns(2)
             with col_lat:
@@ -230,7 +230,8 @@ with tabs[0]:
                 longitude = st.text_input("Longitude (optional)")
 
             priority = st.selectbox("Priority", ["Low","Medium","High","Critical"], index=1)
-            followup_by = st.text_input("Follow-up by (Executive)")
+            followup_by = st.text_input("Follow-up by (Technician)")
+            issue = st.text_area("Issue / Description *", height=120)
 
         added_by = user_name or st.text_input("Added By", placeholder="Your name")
         status = st.selectbox("Status", ["Open","In Progress","Resolved","Cancelled"], index=0)
@@ -258,7 +259,7 @@ with tabs[0]:
                     "customer_name": customer_name.strip(),
                     "customer_mobile": customer_mobile.strip(),
                     "pickup_location": pickup_location.strip(),
-                    "booking_days": booking_days,
+                    #"booking_days": booking_days,
                     "issue": issue.strip(),
                     "vehicle_number": vehicle_number.strip(),
                     "vehicle_model": vehicle_model.strip(),
@@ -293,7 +294,7 @@ with tabs[0]:
                 st.write(f"**Customer Name:** {row['customer_name']}")
                 st.write(f"**Mobile:** {row['customer_mobile']}")
                 st.write(f"**Pickup Location:** {row['pickup_location']}")
-                st.write(f"**Booking Days:** {row['booking_days']}")
+                #st.write(f"**Booking Days:** {row['booking_days']}")
                 st.write(f"**Issue:** {row['issue']}")
                 st.write(f"**Vehicle Number:** {row['vehicle_number']}")
                 st.write(f"**Priority:** {row['priority']}")
@@ -489,8 +490,7 @@ with tabs[3]:
         Customer: {row.get('customer_name','')}  
         Mobile: {row.get('customer_mobile','')}  
         Vehicle: {row.get('vehicle_model','')} ({row.get('vehicle_number','')})  
-        Pickup: {row.get('pickup_location','')}  
-        Days: {row.get('booking_days','')}  
+        Pickup: {row.get('pickup_location','')}   
         Issue: {row.get('issue','')}  
         Priority: {row.get('priority','')}  
         Status: {row.get('status','')}  
@@ -540,4 +540,4 @@ with tabs[3]:
 
 
 st.markdown("---")
-st.caption("© Rentelo | Built with Streamlit + Google Sheets")
+st.caption("© Rentelo | Bangalore!*****")

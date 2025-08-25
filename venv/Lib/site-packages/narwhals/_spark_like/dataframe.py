@@ -22,11 +22,12 @@ from narwhals._utils import (
     generate_temporary_column_name,
     not_implemented,
     parse_columns_to_drop,
+    zip_strict,
 )
 from narwhals.exceptions import InvalidOperationError
 
 if TYPE_CHECKING:
-    from collections.abc import Iterator, Mapping, Sequence
+    from collections.abc import Iterable, Iterator, Mapping, Sequence
     from io import BytesIO
     from pathlib import Path
     from types import ModuleType
@@ -41,6 +42,7 @@ if TYPE_CHECKING:
     from narwhals._spark_like.expr import SparkLikeExpr
     from narwhals._spark_like.group_by import SparkLikeLazyGroupBy
     from narwhals._spark_like.namespace import SparkLikeNamespace
+    from narwhals._typing import _EagerAllowedImpl
     from narwhals._utils import Version, _LimitedContext
     from narwhals.dataframe import LazyFrame
     from narwhals.dtypes import DType
@@ -77,7 +79,7 @@ class SparkLikeLazyFrame(
         return self._implementation._backend_version()
 
     @property
-    def _F(self):  # type: ignore[no-untyped-def] # noqa: ANN202, N802
+    def _F(self):  # type: ignore[no-untyped-def] # noqa: ANN202
         if TYPE_CHECKING:
             from sqlframe.base import functions
 
@@ -93,7 +95,7 @@ class SparkLikeLazyFrame(
         return import_native_dtypes(self._implementation)
 
     @property
-    def _Window(self) -> type[Window]:  # noqa: N802
+    def _Window(self) -> type[Window]:
         if TYPE_CHECKING:
             from sqlframe.base.window import Window
 
@@ -198,7 +200,7 @@ class SparkLikeLazyFrame(
         return self._cached_columns
 
     def _collect(
-        self, backend: ModuleType | Implementation | str | None, **kwargs: Any
+        self, backend: _EagerAllowedImpl | None, **kwargs: Any
     ) -> CompliantDataFrameAny:
         if backend is Implementation.PANDAS:
             from narwhals._pandas_like.dataframe import PandasLikeDataFrame
@@ -236,7 +238,7 @@ class SparkLikeLazyFrame(
         raise ValueError(msg)  # pragma: no cover
 
     def collect(
-        self, backend: ModuleType | Implementation | str | None, **kwargs: Any
+        self, backend: _EagerAllowedImpl | None, **kwargs: Any
     ) -> CompliantDataFrameAny:
         if self._implementation.is_pyspark_connect():
             try:
@@ -335,8 +337,18 @@ class SparkLikeLazyFrame(
                 for d in descending
             )
 
-        sort_cols = [sort_f(col) for col, sort_f in zip(by, sort_funcs)]
+        sort_cols = [sort_f(col) for col, sort_f in zip_strict(by, sort_funcs)]
         return self._with_native(self.native.sort(*sort_cols))
+
+    def top_k(self, k: int, *, by: Iterable[str], reverse: bool | Sequence[bool]) -> Self:
+        by = list(by)
+        if isinstance(reverse, bool):
+            reverse = [reverse] * len(by)
+        sort_funcs = (
+            self._F.desc_nulls_last if not d else self._F.asc_nulls_last for d in reverse
+        )
+        sort_cols = [sort_f(col) for col, sort_f in zip_strict(by, sort_funcs)]
+        return self._with_native(self.native.sort(*sort_cols).limit(k))
 
     def drop_nulls(self, subset: Sequence[str] | None) -> Self:
         subset = list(subset) if subset else None
@@ -423,7 +435,7 @@ class SparkLikeLazyFrame(
                 and_,
                 (
                     getattr(self.native, left_key) == getattr(other_native, right_key)
-                    for left_key, right_key in zip(left_on_, right_on_remapped)
+                    for left_key, right_key in zip_strict(left_on_, right_on_remapped)
                 ),
             )
             if how == "full"
